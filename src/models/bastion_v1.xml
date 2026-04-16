@@ -1,0 +1,199 @@
+<mujoco model="bastion">
+  <compiler angle="degree" coordinate="local" inertiafromgeom="true"/>
+  
+  <option integrator="implicitfast" timestep="0.002" solver="Newton" iterations="200">
+    <flag filterparent="enable"/>
+  </option>
+
+  <visual>
+    <global offwidth="1200" offheight="800"/>
+  </visual>
+
+  <custom>
+    <numeric data="0.0 0.0 0.50 1.0 0.0 0.0 0.0  0 0  0 0  0 0  0 0  0 0  0 0" name="init_qpos"/>
+  </custom>
+
+  <default>
+    <joint armature="1" damping="1" limited="true"/>
+    <default class="ankle">
+      <joint armature="2" damping="10"/>
+    </default>
+    <geom conaffinity="0" condim="3" density="25.0" friction="1 0.5 0.5" margin="0.01" rgba="0.5 0.5 0.5 1"/>
+  </default>
+
+  <asset>
+    <texture builtin="gradient" height="100" rgb1="1 1 1" rgb2="0.6 0.6 0.8" type="skybox" width="100"/>
+    <texture builtin="checker" height="100" name="texplane" rgb1="0.2 0.3 0.4" rgb2="0.1 0.15 0.2" type="2d" width="100"/>
+    <material name="MatPlane" reflectance="0.5" shininess="1" specular="1" texrepeat="60 60" texture="texplane"/>
+    <material name="base_mat" rgba="0.25 0.25 0.25 1" specular="0.7" shininess="0.4"/>
+    <material name="head_mat" rgba="0.30 0.30 0.30 1" specular="0.9" shininess="0.6"/>
+    <material name="armor_mat" rgba="0.4 0.38 0.35 1" specular="0.8" shininess="0.5"/>
+    <material name="leg_mat" rgba="0.20 0.20 0.20 1" specular="0.6" shininess="0.3"/>
+    <material name="joint_glow" rgba="0.85 0.7 0.15 1" emission="0.5"/>
+    <material name="eye_mat" rgba="0.2 0.8 1.0 1" emission="0.8"/>
+    <material name="foot_mat" rgba="0.15 0.15 0.15 1" specular="0.5"/>
+  </asset>
+
+  <worldbody>
+    <light cutoff="100" diffuse="1 1 1" dir="0 0 -1.3" directional="true" exponent="1" pos="0 0 1.3" specular="0.1 0.1 0.1"/>
+    <geom conaffinity="1" condim="3" material="MatPlane" name="floor" pos="0 0 0" size="40 40 40" type="plane"/>
+
+    <body name="torso" pos="0 0 0.50">
+      <camera name="track" mode="trackcom" pos="0 -5 2" xyaxes="1 0 0 0 0.5 1"/>
+      <joint armature="0" damping="0" limited="false" margin="0.01" name="root" pos="0 0 0" type="free"/>
+      <site name="torso_site" pos="0 0 0" size="0.01"/>
+
+      <geom name="chassis" type="box" size="0.25 0.25 0.10" material="base_mat"/>
+      
+      <geom name="carapace_center" type="ellipsoid" size="0.38 0.20 0.20" pos="-0.05 0 0.15" euler="0 10 0" material="armor_mat" contype="0" conaffinity="0" mass="3.0"/>
+      <geom name="carapace_left" type="ellipsoid" size="0.35 0.25 0.18" pos="-0.05 0.25 0.12" euler="0 15 -15" material="armor_mat" contype="0" conaffinity="0" mass="0"/>
+      <geom name="carapace_right" type="ellipsoid" size="0.35 0.25 0.18" pos="-0.05 -0.25 0.12" euler="0 15 15" material="armor_mat" contype="0" conaffinity="0" mass="0"/>
+      
+      <geom name="top_hatch" type="cylinder" size="0.14 0.02" pos="-0.05 0 0.33" material="head_mat" contype="0" conaffinity="0" mass="0"/>
+      
+      <geom name="face_shield" type="box" size="0.10 0.18 0.12" pos="0.26 0 0.05" material="base_mat" contype="0" conaffinity="0" mass="0"/>
+      <geom name="eye_slit" type="box" size="0.02 0.10 0.015" pos="0.36 0 0.08" material="eye_mat" contype="0" conaffinity="0" mass="0"/>
+      
+      <geom name="gun_base" type="box" size="0.08 0.06 0.04" pos="0.30 0 -0.05" material="base_mat" contype="0" conaffinity="0" mass="0"/>
+      <geom name="gun_barrel" type="cylinder" size="0.012 0.15" pos="0.45 0 -0.05" euler="0 90 0" material="head_mat" contype="0" conaffinity="0" mass="0"/>
+
+      <body name="l1_upper" pos="0.20 0.28 0">
+        <joint name="l1_hip" type="hinge" axis="0 0 1" range="-30 30" pos="0 0 0"/>
+        <geom name="l1_upper_geom" fromto="0 0 0 0.15 0.20 -0.10" size="0.06" type="capsule" material="leg_mat"/>
+        <geom name="l1_hip_glow" type="cylinder" size="0.04 0.02" pos="0 0 0" material="joint_glow" contype="0" conaffinity="0" mass="0"/>
+        <body name="l1_lower" pos="0.15 0.20 -0.10">
+          <joint name="l1_ankle" class="ankle" type="hinge" axis="-1 1 0" range="0 100" pos="0 0 0"/>
+          <geom name="l1_lower_geom" fromto="0 0 0 0.05 0.05 -0.30" size="0.05" type="capsule" material="leg_mat"/>
+          <geom name="l1_ankle_glow" type="cylinder" size="0.035 0.02" pos="0 0 0" euler="0 90 45" material="joint_glow" contype="0" conaffinity="0" mass="0"/>
+          <body name="l1_foot" pos="0.05 0.05 -0.30">
+            <geom name="l1_foot_geom" type="sphere" size="0.05" material="foot_mat"/>
+          </body>
+        </body>
+      </body>
+
+      <body name="l2_upper" pos="0 0.30 0">
+        <joint name="l2_hip" type="hinge" axis="0 0 1" range="-45 45" pos="0 0 0"/>
+        <geom name="l2_upper_geom" fromto="0 0 0 0.08 0.25 -0.10" size="0.06" type="capsule" material="leg_mat"/>
+        <geom name="l2_hip_glow" type="cylinder" size="0.04 0.02" pos="0 0 0" material="joint_glow" contype="0" conaffinity="0" mass="0"/>
+        <body name="l2_lower" pos="0.08 0.25 -0.10">
+          <joint name="l2_ankle" class="ankle" type="hinge" axis="-1 0 0" range="0 100" pos="0 0 0"/>
+          <geom name="l2_lower_geom" fromto="0 0 0 0 0.05 -0.30" size="0.05" type="capsule" material="leg_mat"/>
+          <geom name="l2_ankle_glow" type="cylinder" size="0.035 0.02" pos="0 0 0" euler="0 90 0" material="joint_glow" contype="0" conaffinity="0" mass="0"/>
+          <body name="l2_foot" pos="0 0.05 -0.30">
+            <geom name="l2_foot_geom" type="sphere" size="0.05" material="foot_mat"/>
+          </body>
+        </body>
+      </body>
+
+      <body name="l3_upper" pos="-0.20 0.28 0">
+        <joint name="l3_hip" type="hinge" axis="0 0 1" range="-30 30" pos="0 0 0"/>
+        <geom name="l3_upper_geom" fromto="0 0 0 -0.15 0.20 -0.10" size="0.06" type="capsule" material="leg_mat"/>
+        <geom name="l3_hip_glow" type="cylinder" size="0.04 0.02" pos="0 0 0" material="joint_glow" contype="0" conaffinity="0" mass="0"/>
+        <body name="l3_lower" pos="-0.15 0.20 -0.10">
+          <joint name="l3_ankle" class="ankle" type="hinge" axis="1 1 0" range="-100 0" pos="0 0 0"/>
+          <geom name="l3_lower_geom" fromto="0 0 0 -0.05 0.05 -0.30" size="0.05" type="capsule" material="leg_mat"/>
+          <geom name="l3_ankle_glow" type="cylinder" size="0.035 0.02" pos="0 0 0" euler="0 90 -45" material="joint_glow" contype="0" conaffinity="0" mass="0"/>
+          <body name="l3_foot" pos="-0.05 0.05 -0.30">
+            <geom name="l3_foot_geom" type="sphere" size="0.05" material="foot_mat"/>
+          </body>
+        </body>
+      </body>
+
+      <body name="r1_upper" pos="0.20 -0.28 0">
+        <joint name="r1_hip" type="hinge" axis="0 0 1" range="-30 30" pos="0 0 0"/>
+        <geom name="r1_upper_geom" fromto="0 0 0 0.15 -0.20 -0.10" size="0.06" type="capsule" material="leg_mat"/>
+        <geom name="r1_hip_glow" type="cylinder" size="0.04 0.02" pos="0 0 0" material="joint_glow" contype="0" conaffinity="0" mass="0"/>
+        <body name="r1_lower" pos="0.15 -0.20 -0.10">
+          <joint name="r1_ankle" class="ankle" type="hinge" axis="1 1 0" range="0 100" pos="0 0 0"/>
+          <geom name="r1_lower_geom" fromto="0 0 0 0.05 -0.05 -0.30" size="0.05" type="capsule" material="leg_mat"/>
+          <geom name="r1_ankle_glow" type="cylinder" size="0.035 0.02" pos="0 0 0" euler="0 90 -45" material="joint_glow" contype="0" conaffinity="0" mass="0"/>
+          <body name="r1_foot" pos="0.05 -0.05 -0.30">
+            <geom name="r1_foot_geom" type="sphere" size="0.05" material="foot_mat"/>
+          </body>
+        </body>
+      </body>
+
+      <body name="r2_upper" pos="0 -0.30 0">
+        <joint name="r2_hip" type="hinge" axis="0 0 1" range="-45 45" pos="0 0 0"/>
+        <geom name="r2_upper_geom" fromto="0 0 0 0.08 -0.25 -0.10" size="0.06" type="capsule" material="leg_mat"/>
+        <geom name="r2_hip_glow" type="cylinder" size="0.04 0.02" pos="0 0 0" material="joint_glow" contype="0" conaffinity="0" mass="0"/>
+        <body name="r2_lower" pos="0.08 -0.25 -0.10">
+          <joint name="r2_ankle" class="ankle" type="hinge" axis="1 0 0" range="0 100" pos="0 0 0"/>
+          <geom name="r2_lower_geom" fromto="0 0 0 0 -0.05 -0.30" size="0.05" type="capsule" material="leg_mat"/>
+          <geom name="r2_ankle_glow" type="cylinder" size="0.035 0.02" pos="0 0 0" euler="0 90 0" material="joint_glow" contype="0" conaffinity="0" mass="0"/>
+          <body name="r2_foot" pos="0 -0.05 -0.30">
+            <geom name="r2_foot_geom" type="sphere" size="0.05" material="foot_mat"/>
+          </body>
+        </body>
+      </body>
+
+      <body name="r3_upper" pos="-0.20 -0.28 0">
+        <joint name="r3_hip" type="hinge" axis="0 0 1" range="-30 30" pos="0 0 0"/>
+        <geom name="r3_upper_geom" fromto="0 0 0 -0.15 -0.20 -0.10" size="0.06" type="capsule" material="leg_mat"/>
+        <geom name="r3_hip_glow" type="cylinder" size="0.04 0.02" pos="0 0 0" material="joint_glow" contype="0" conaffinity="0" mass="0"/>
+        <body name="r3_lower" pos="-0.15 -0.20 -0.10">
+          <joint name="r3_ankle" class="ankle" type="hinge" axis="-1 1 0" range="-100 0" pos="0 0 0"/>
+          <geom name="r3_lower_geom" fromto="0 0 0 -0.05 -0.05 -0.30" size="0.05" type="capsule" material="leg_mat"/>
+          <geom name="r3_ankle_glow" type="cylinder" size="0.035 0.02" pos="0 0 0" euler="0 90 45" material="joint_glow" contype="0" conaffinity="0" mass="0"/>
+          <body name="r3_foot" pos="-0.05 -0.05 -0.30">
+            <geom name="r3_foot_geom" type="sphere" size="0.05" material="foot_mat"/>
+          </body>
+        </body>
+      </body>
+
+    </body>
+  </worldbody>
+
+  <contact>
+    <exclude body1="torso" body2="l1_upper"/>
+    <exclude body1="torso" body2="l2_upper"/>
+    <exclude body1="torso" body2="l3_upper"/>
+    <exclude body1="torso" body2="r1_upper"/>
+    <exclude body1="torso" body2="r2_upper"/>
+    <exclude body1="torso" body2="r3_upper"/>
+  </contact>
+
+  <actuator>
+    <motor joint="l1_hip"   ctrlrange="-1 1" ctrllimited="true" gear="150"/>
+    <motor joint="l1_ankle" ctrlrange="-1 1" ctrllimited="true" gear="150"/>
+    <motor joint="l2_hip"   ctrlrange="-1 1" ctrllimited="true" gear="150"/>
+    <motor joint="l2_ankle" ctrlrange="-1 1" ctrllimited="true" gear="150"/>
+    <motor joint="l3_hip"   ctrlrange="-1 1" ctrllimited="true" gear="150"/>
+    <motor joint="l3_ankle" ctrlrange="-1 1" ctrllimited="true" gear="150"/>
+    <motor joint="r1_hip"   ctrlrange="-1 1" ctrllimited="true" gear="150"/>
+    <motor joint="r1_ankle" ctrlrange="-1 1" ctrllimited="true" gear="150"/>
+    <motor joint="r2_hip"   ctrlrange="-1 1" ctrllimited="true" gear="150"/>
+    <motor joint="r2_ankle" ctrlrange="-1 1" ctrllimited="true" gear="150"/>
+    <motor joint="r3_hip"   ctrlrange="-1 1" ctrllimited="true" gear="150"/>
+    <motor joint="r3_ankle" ctrlrange="-1 1" ctrllimited="true" gear="150"/>
+  </actuator>
+
+  <sensor>
+    <jointpos name="l1_hip_pos" joint="l1_hip"/>
+    <jointpos name="l1_ankle_pos" joint="l1_ankle"/>
+    <jointpos name="l2_hip_pos" joint="l2_hip"/>
+    <jointpos name="l2_ankle_pos" joint="l2_ankle"/>
+    <jointpos name="l3_hip_pos" joint="l3_hip"/>
+    <jointpos name="l3_ankle_pos" joint="l3_ankle"/>
+    <jointpos name="r1_hip_pos" joint="r1_hip"/>
+    <jointpos name="r1_ankle_pos" joint="r1_ankle"/>
+    <jointpos name="r2_hip_pos" joint="r2_hip"/>
+    <jointpos name="r2_ankle_pos" joint="r2_ankle"/>
+    <jointpos name="r3_hip_pos" joint="r3_hip"/>
+    <jointpos name="r3_ankle_pos" joint="r3_ankle"/>
+    <jointvel name="l1_hip_vel" joint="l1_hip"/>
+    <jointvel name="l1_ankle_vel" joint="l1_ankle"/>
+    <jointvel name="l2_hip_vel" joint="l2_hip"/>
+    <jointvel name="l2_ankle_vel" joint="l2_ankle"/>
+    <jointvel name="l3_hip_vel" joint="l3_hip"/>
+    <jointvel name="l3_ankle_vel" joint="l3_ankle"/>
+    <jointvel name="r1_hip_vel" joint="r1_hip"/>
+    <jointvel name="r1_ankle_vel" joint="r1_ankle"/>
+    <jointvel name="r2_hip_vel" joint="r2_hip"/>
+    <jointvel name="r2_ankle_vel" joint="r2_ankle"/>
+    <jointvel name="r3_hip_vel" joint="r3_hip"/>
+    <jointvel name="r3_ankle_vel" joint="r3_ankle"/>
+    <accelerometer name="torso_accel" site="torso_site"/>
+    <gyro name="torso_gyro" site="torso_site"/>
+  </sensor>
+</mujoco>

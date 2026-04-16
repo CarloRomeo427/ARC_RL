@@ -1,0 +1,11 @@
+numpy>=1.24
+torch
+gymnasium
+gymnasium[mujoco]
+tensorboard
+wandb
+wandb[media]
+h5py
+joblib
+imageio==2.37.2
+pillow==12.0.0

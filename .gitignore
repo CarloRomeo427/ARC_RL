@@ -1,0 +1,6 @@
+runs/
+wandb/
+__pycache__/
+Plots/
+outputs/
+scripts/
