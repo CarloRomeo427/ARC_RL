@@ -95,7 +95,7 @@ If this code helps you in your research, please cite it — it's much appreciate
 ```bibtex
 @software{arc_rl_2026,
   author = {Carlo Romeo},
-  title  = {ARC-RL: A Reinforcement Learning Benchmark for ARC-Raiders Inspired Robots},
+  title  = {ARC-RL: A Reinforcement Learning Playground for ARC-Raiders Inspired Robots},
   year   = {2026},
   url    = {https://github.com/CarloRomeo427/ARC_RL.git}
 }
