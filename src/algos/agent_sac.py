@@ -29,6 +29,10 @@ class SACAgent(BaseAgent):
         layer_norm: bool = True,
         o2o: bool = False,
     ):
+
+        if self.__class__.__name__ == 'SACAgent':
+            target_drop_rate = 0.0
+
         super().__init__(
             env_name, obs_dim, act_dim, act_limit, device,
             hidden_sizes, replay_size, batch_size, lr, gamma, polyak,
@@ -37,22 +41,15 @@ class SACAgent(BaseAgent):
         )
 
     def train(self, current_env_step: int = None):
-        if self.buffer_size <= self.delay_update_steps:
-            return 0.0, 0.0
-
-        total_q_loss = 0.0
-        total_pi_loss = 0.0
-
         for i_update in range(self.utd_ratio):
-            if self.o2o and self.replay_buffer_offline.size > 0:
-                obs, obs_next, acts, rews, done = self.sample_data_mix(self.batch_size)
+            if getattr(self, 'o2o', False) and hasattr(self, 'replay_buffer_offline'):
+                obs, next_obs, acts, rews, done = self.sample_data_mix(self.batch_size)
             else:
-                obs, obs_next, acts, rews, done = self.sample_data(self.batch_size)
+                obs, next_obs, acts, rews, done = self.sample_data(self.batch_size)
 
-            # Q update
-            y_q = self.get_sac_q_target(obs_next, rews, done)
-            q_preds = [q_net(torch.cat([obs, acts], 1)) for q_net in self.q_net_list]
-            q_cat = torch.cat(q_preds, dim=1)
+            y_q = self.get_sac_q_target(next_obs, rews, done)
+            q_values = [q_net(torch.cat([obs, acts], 1)) for q_net in self.q_net_list]
+            q_cat = torch.cat(q_values, dim=1)
             y_q_expanded = y_q.expand((-1, self.num_Q)) if y_q.shape[1] == 1 else y_q
 
             q_loss = self.mse_criterion(q_cat, y_q_expanded) * self.num_Q
@@ -61,7 +58,6 @@ class SACAgent(BaseAgent):
                 q_opt.zero_grad()
             q_loss.backward()
 
-            # Policy update (delayed)
             if ((i_update + 1) % self.policy_update_delay == 0) or i_update == self.utd_ratio - 1:
                 action, _, _, log_prob, _, _ = self.policy_net.forward(obs)
 
@@ -81,15 +77,9 @@ class SACAgent(BaseAgent):
                 if self.auto_alpha:
                     self.update_alpha(log_prob)
 
-                total_pi_loss = policy_loss.item()
-
             for q_opt in self.q_optimizer_list:
                 q_opt.step()
-
             if ((i_update + 1) % self.policy_update_delay == 0) or i_update == self.utd_ratio - 1:
                 self.policy_optimizer.step()
 
             self.update_target_networks()
-            total_q_loss = q_loss.item() / self.num_Q
-
-        return total_pi_loss, total_q_loss

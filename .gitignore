@@ -4,3 +4,5 @@ __pycache__/
 Plots/
 outputs/
 scripts/
+data/
+assets/

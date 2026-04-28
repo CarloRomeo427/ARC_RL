@@ -9,3 +9,5 @@ h5py
 joblib
 imageio==2.37.2
 pillow==12.0.0
+huggingface-hub
+h5py

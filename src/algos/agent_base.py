@@ -56,14 +56,12 @@ class BaseAgent(ABC):
         self.layer_norm = layer_norm
         self.o2o = o2o
         
-        # Initialize policy network
         self.policy_net = TanhGaussianPolicy(
             obs_dim, act_dim, hidden_sizes,
             action_limit=act_limit,
             layer_norm=layer_norm
         ).to(device)
         
-        # Initialize Q-networks
         self.q_net_list = []
         self.q_target_net_list = []
         for _ in range(num_Q):
@@ -81,11 +79,9 @@ class BaseAgent(ABC):
             self.q_net_list.append(q_net)
             self.q_target_net_list.append(q_target_net)
         
-        # Initialize optimizers
         self.policy_optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
         self.q_optimizer_list = [optim.Adam(q.parameters(), lr=lr) for q in self.q_net_list]
         
-        # Entropy coefficient (alpha)
         self.auto_alpha = auto_alpha
         if auto_alpha:
             self.target_entropy = self._get_target_entropy(env_name, act_dim, target_entropy)
@@ -98,11 +94,9 @@ class BaseAgent(ABC):
             self.log_alpha = None
             self.alpha_optim = None
         
-        # Replay buffers
         self.replay_buffer = ReplayBuffer(obs_dim=obs_dim, act_dim=act_dim, size=replay_size)
         self.replay_buffer_offline = ReplayBuffer(obs_dim=obs_dim, act_dim=act_dim, size=replay_size)
         
-        # Loss criterion
         self.mse_criterion = nn.MSELoss()
     
     def _get_target_entropy(self, env_name: str, act_dim: int, target_entropy: str) -> float:
@@ -114,12 +108,8 @@ class BaseAgent(ABC):
     def buffer_size(self) -> int:
         return self.replay_buffer.size
     
-    # ─────────────────────────────────────────────────────────────────────────────
-    # Action Selection
-    # ─────────────────────────────────────────────────────────────────────────────
     
     def get_exploration_action(self, obs: np.ndarray, env) -> np.ndarray:
-        """Get action for exploration (random initially, then from policy)."""
         with torch.no_grad():
             if self.buffer_size > self.start_steps:
                 obs_tensor = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
@@ -130,7 +120,6 @@ class BaseAgent(ABC):
             return env.action_space.sample()
     
     def get_test_action(self, obs: np.ndarray) -> np.ndarray:
-        """Get deterministic action for evaluation."""
         with torch.no_grad():
             obs_tensor = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
             action = self.policy_net.forward(
@@ -138,11 +127,6 @@ class BaseAgent(ABC):
             )[0]
             return action.cpu().numpy().reshape(-1)
     
-    
-    
-    # ─────────────────────────────────────────────────────────────────────────────
-    # Data Storage
-    # ─────────────────────────────────────────────────────────────────────────────
     
     def store_data(self, o, a, r, o2, d):
         """Store transition in online replay buffer."""
@@ -152,22 +136,15 @@ class BaseAgent(ABC):
         """Store transition in offline replay buffer."""
         self.replay_buffer_offline.store(o, a, r, o2, d)
     
-    # ─────────────────────────────────────────────────────────────────────────────
-    # Data Sampling
-    # ─────────────────────────────────────────────────────────────────────────────
-    
     def sample_data(self, batch_size: int):
-        """Sample batch from online buffer."""
         batch = self.replay_buffer.sample_batch(batch_size)
         return self._batch_to_tensors(batch)
     
     def sample_data_offline_only(self, batch_size: int):
-        """Sample batch from offline buffer."""
         batch = self.replay_buffer_offline.sample_batch(batch_size)
         return self._batch_to_tensors(batch)
     
     def sample_data_mix(self, batch_size: int):
-        """Sample mixed batch from online and offline buffers (50/50)."""
         batch_online = self.replay_buffer.sample_batch(batch_size)
         batch_offline = self.replay_buffer_offline.sample_batch(batch_size)
         
@@ -181,25 +158,18 @@ class BaseAgent(ABC):
         return self._batch_to_tensors(batch)
     
     def _batch_to_tensors(self, batch: dict):
-        """Convert numpy batch to device tensors."""
         obs = torch.FloatTensor(batch['obs1']).to(self.device)
         obs_next = torch.FloatTensor(batch['obs2']).to(self.device)
         acts = torch.FloatTensor(batch['acts']).to(self.device)
         rews = torch.FloatTensor(batch['rews']).unsqueeze(1).to(self.device)
         done = torch.FloatTensor(batch['done']).unsqueeze(1).to(self.device)
         return obs, obs_next, acts, rews, done
-    
-    # ─────────────────────────────────────────────────────────────────────────────
-    # Common Training Utilities
-    # ─────────────────────────────────────────────────────────────────────────────
-    
+
     def update_target_networks(self):
-        """Soft update all target Q-networks."""
         for q_net, q_target in zip(self.q_net_list, self.q_target_net_list):
             soft_update_model1_with_model2(q_target, q_net, self.polyak)
     
     def update_alpha(self, log_prob: torch.Tensor):
-        """Update entropy coefficient alpha."""
         if self.auto_alpha:
             alpha_loss = -(self.log_alpha * (log_prob + self.target_entropy).detach()).mean()
             self.alpha_optim.zero_grad()
@@ -210,7 +180,6 @@ class BaseAgent(ABC):
         return 0.0
     
     def get_sac_q_target(self, obs_next: torch.Tensor, rews: torch.Tensor, done: torch.Tensor):
-        """Compute SAC-style Q-target: r + γ(1-d)(min Q' - α log π)."""
         with torch.no_grad():
             next_action, _, _, next_log_prob, _, _ = self.policy_net.forward(obs_next)
             
@@ -223,10 +192,7 @@ class BaseAgent(ABC):
             
             return rews + self.gamma * (1 - done) * (q_next_min - self.alpha * next_log_prob)
     
-    # ─────────────────────────────────────────────────────────────────────────────
-    # Abstract Methods (to be implemented by subclasses)
-    # ─────────────────────────────────────────────────────────────────────────────
-    
+
     @abstractmethod
     def train(self, logger, current_env_step: int = None):
         """Perform one training step. Must be implemented by subclasses."""
