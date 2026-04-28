@@ -64,7 +64,18 @@ Tested with Python 3.10+ and PyTorch with CUDA.
 python main.py --algo sac --env queen --log-wandb
 ```
 
-That's it. This trains SAC on the Queen for 1000 epochs (1M env steps), logs to Weights & Biases, and checkpoints into `outputs/sac_queen/seed_0/checkpoints/`.
+That's it. This trains SAC on the Queen for 5000 epochs (1M env steps), logs to Weights & Biases, and checkpoints into `outputs/sac_queen/seed_0/checkpoints/`.
+
+## 💾 Dataset Collection & Offline RL
+
+You can now generate HDF5 demonstration datasets using the collect_dataset.py script and the hand-crafted controllers:
+
+```bash
+python src/utils/collect_dataset.py --env bastion --n-episodes 1000
+```
+
+If you don't want to generate datasets yourself, the training script will automatically attempt to download the required datasets we have previously generated from our [Hugging Face repository](https://huggingface.co/datasets/CarloRomeoHugging/ARC_RL/tree/main)!
+
 
 ### CLI flags
 
