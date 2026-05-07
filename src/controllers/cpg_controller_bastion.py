@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 from typing import Dict
 
-os.environ.setdefault("MUJOCO_GL", "egl")
+if sys.platform.startswith("linux") and "DISPLAY" not in os.environ and "WAYLAND_DISPLAY" not in os.environ:
+    os.environ.setdefault("MUJOCO_GL", "egl")
 
 import h5py
 import imageio
@@ -71,6 +73,12 @@ def reset_env_to_stance(env, seed: int = None) -> np.ndarray:
     qpos[7:19] = _stance_qpos_vector()
 
     qvel = np.zeros_like(u.init_qvel)
+
+    noise_scale = u._reset_noise_scale
+    qpos[2] += u.np_random.uniform(-0.02, 0.02)
+    qpos[7:] += u.np_random.uniform(-noise_scale, noise_scale, size=u.model.nq - 7)
+    qvel[6:] = noise_scale * u.np_random.standard_normal(u.model.nv - 6)
+
     u.set_state(qpos, qvel)
     return u._get_obs()
 
@@ -200,9 +208,6 @@ class ScriptedCPGControllerBastion:
 
     def step_phase(self) -> None:
         self.t += 1
-        if self.t <= self.settle_steps:
-            self.phase = self._PHASE_INIT
-            return
         self.phase = (self.phase + self.phase_dt) % (2.0 * np.pi)
 
 

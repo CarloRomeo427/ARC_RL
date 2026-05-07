@@ -36,6 +36,7 @@ ENV_REGISTRY = {
     'leaper-v1': 'Leaper-v1',
     'bastion-v1': 'Bastion-v1',
     'queen-v1': 'Queen-v1',
+    'tick-v1': 'Tick-v1',
     'ant': 'Ant-v5',
 }
 
@@ -43,6 +44,7 @@ DROPOUT_RATES = {
     'leaper': 0.01,
     'bastion': 0.01,
     'queen': 0.01,
+    'tick': 0.01,
 }
 
 def make_env(env_name: str, render_mode: str = None):
@@ -136,8 +138,9 @@ def train(args):
 
     path_map = {
         'sac':       'src.algos.agent_sac.SACAgent',
-        'droq':      'src.algos.agent_sac.SACAgent',
+        'droq':      'src.algos.agent_droq.DroQAgent',
         'sacfd':     'src.algos.agent_sacfd.SACfDAgent',
+        'rlpd':      'src.algos.agent_rlpd.RLPDAgent',
         'speq':      'src.algos.agent_speq.SPEQAgent',
         'speq_o2o':  'src.algos.agent_speq.SPEQAgent',
         'sope':      'src.algos.agent_sope.SOPEAgent',
@@ -150,17 +153,28 @@ def train(args):
     extra_kwargs = {}
     
     # ── DROPOUT SAFETY BLOCK ──
-    if args.algo.lower() in ['speq', 'speq_o2o', 'sope', 'sope_eo']:
+    if args.algo.lower() in ['droq', 'speq', 'speq_o2o', 'sope', 'sope_eo']:
         dropout = args.target_drop_rate if args.target_drop_rate >= 0 else DROPOUT_RATES.get(args.env.lower(), 0.005)
     else:
         dropout = 0.0
-    
-    if args.algo.lower() in ['sacfd', 'speq_o2o', 'sope']:
+
+    # ── UTD RATIO (DroQ/RLPD default to 20, others to 1) ──
+    if args.utd_ratio >= 1:
+        utd_ratio = args.utd_ratio
+    else:
+        utd_ratio = 20 if args.algo.lower() in ['droq', 'rlpd'] else 1
+
+    if args.algo.lower() in ['sacfd', 'rlpd', 'speq_o2o', 'sope']:
         extra_kwargs['o2o'] = True
-    elif args.algo.lower() in ['speq', 'sope_eo', 'sac']:
+    elif args.algo.lower() in ['sac', 'droq', 'speq', 'sope_eo']:
         extra_kwargs['o2o'] = False
 
-    if args.algo.lower() in ['sacfd', 'speq_o2o', 'sope']:
+    if args.algo.lower() in ['sac', 'droq'] and args.offline_dataset is not None:
+        raise ValueError(
+            f"--algo {args.algo} is online-only; --offline-dataset is not supported."
+        )
+
+    if args.algo.lower() in ['sacfd', 'rlpd', 'speq_o2o', 'sope']:
         if args.offline_dataset is None:
             args.offline_dataset = f"data/{args.env}_cpg.hdf5"
             
@@ -198,6 +212,7 @@ def train(args):
         start_steps=args.start_steps if not args.load_weights else 0,
         hidden_sizes=(args.network_width, args.network_width),
         target_drop_rate=dropout,
+        utd_ratio=utd_ratio,
         **extra_kwargs,
     )
 
@@ -251,15 +266,17 @@ def train(args):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--algo", type=str, default='sac',
-                        choices=['sac', 'droq', 'speq', 'speq_o2o', 'sope', 'sope_eo', 'sacfd'])
+                        choices=['sac', 'droq', 'speq', 'speq_o2o', 'sope', 'sope_eo', 'sacfd', 'rlpd'])
     parser.add_argument("--env", type=str, default='queen', 
-                        choices=['leaper', 'bastion', 'queen', 'ant'])
+                        choices=['leaper', 'bastion', 'queen', 'tick', 'ant'])
     parser.add_argument("--save-dataset", action="store_true")
-    parser.add_argument("--epochs", type=int, default=5000)
+    parser.add_argument("--epochs", type=int, default=1000)
     parser.add_argument("--steps-per-epoch", type=int, default=1000)
     parser.add_argument("--start-steps", type=int, default=5000)
     parser.add_argument("--network-width", type=int, default=256)
     parser.add_argument("--target-drop-rate", type=float, default=-1.0)
+    parser.add_argument("--utd-ratio", type=int, default=-1,
+                        help="Update-to-data ratio. -1 = algo default (DroQ=20, else=1).")
     parser.add_argument("--gpu-id", type=int, default=0)
     parser.add_argument("--log-wandb", action="store_true")
     parser.add_argument("--checkpoint-dir", type=str, default='outputs')

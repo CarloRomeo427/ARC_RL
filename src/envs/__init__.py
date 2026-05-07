@@ -20,3 +20,10 @@ gym.register(
     max_episode_steps=1000,
     reward_threshold=6000.0,
 )
+
+gym.register(
+    id='Tick-v1',
+    entry_point='src.envs.tick_env_v1:TickEnv',
+    max_episode_steps=1000,
+    reward_threshold=6000.0,
+)

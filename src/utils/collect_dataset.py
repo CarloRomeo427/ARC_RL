@@ -9,7 +9,7 @@ import numpy as np
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument('--env', type=str, required=True, choices=['leaper', 'bastion', 'queen'])
+    p.add_argument('--env', type=str, required=True, choices=['leaper', 'bastion', 'queen', 'tick'])
     p.add_argument('--preset', type=str, default='medium', choices=['slow', 'medium', 'fast'])
     p.add_argument('--n-episodes', type=int, default=1000)
     p.add_argument('--max-ep-len', type=int, default=1000)
@@ -37,13 +37,14 @@ def main():
     env = gym.make(env_id_func(args.env))
     ctrl = ctrl_class(env, robot=args.env, preset=args.preset)
 
-    base_seed = args.seed if args.seed is not None else np.random.randint(0, 100000)
+    base_seed = args.seed if args.seed is not None else int(np.random.SeedSequence().entropy % (2**31 - 1))
+    rng = np.random.default_rng(base_seed)
     returns = []
 
     with h5py.File(out_path, 'w') as f:
         for i in range(args.n_episodes):
-            current_seed = base_seed + np.random.randint(1, 10000)
-            
+            current_seed = int(rng.integers(0, 2**31 - 1))
+
             ep = collect_episode(env, ctrl, args.max_ep_len, seed=current_seed)
             
             g = f.create_group(f"episode_{i}")

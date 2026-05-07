@@ -6,20 +6,19 @@ from gymnasium import utils
 from gymnasium.envs.mujoco import MujocoEnv
 from gymnasium.spaces import Box
 
-_XML_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "src/models", "bastion_v1.xml")
+_XML_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "src/models", "tick_v1.xml")
 
 DEFAULT_CAMERA_CONFIG = {
-    "distance": 4.0,
+    "distance": 3.0,
 }
 
-class BastionEnv(MujocoEnv, utils.EzPickle):
+class TickEnv(MujocoEnv, utils.EzPickle):
 
     metadata = {
         "render_modes": ["human", "rgb_array", "depth_array", "rgbd_tuple"],
     }
 
     FOOT_NAMES = ["l1_foot", "r1_foot", "l2_foot", "r2_foot", "l3_foot", "r3_foot"]
-
     FOOT_PHASE_OFFSETS = np.array([np.pi, 0.0, 0.0, np.pi, np.pi, 0.0])
 
     def __init__(
@@ -28,7 +27,7 @@ class BastionEnv(MujocoEnv, utils.EzPickle):
         frame_skip: int = 25,
         default_camera_config: Dict[str, Union[float, int]] = DEFAULT_CAMERA_CONFIG,
         forward_reward_weight: float = 1.5,
-        ctrl_cost_weight: float = 0.08,
+        ctrl_cost_weight: float = 0.05,
         contact_cost_weight: float = 5e-4,
         healthy_reward: float = 1.0,
         smoothness_weight: float = 0.02,
@@ -39,11 +38,11 @@ class BastionEnv(MujocoEnv, utils.EzPickle):
         gait_bonus_weight: float = 1.5,
         gait_frequency: float = 1.5,
         gait_duty: float = 0.6,
-        target_velocity: float = 0.5,
-        velocity_sigma: float = 0.3,
+        target_velocity: float = 0.33,
+        velocity_sigma: float = 0.33,
         main_body: Union[int, str] = 1,
         terminate_when_unhealthy: bool = True,
-        healthy_z_range: Tuple[float, float] = (0.15, 1.0),
+        healthy_z_range: Tuple[float, float] = (0.08, 0.35),
         contact_force_range: Tuple[float, float] = (-1.0, 1.0),
         reset_noise_scale: float = 0.1,
         exclude_current_positions_from_observation: bool = True,
@@ -148,7 +147,7 @@ class BastionEnv(MujocoEnv, utils.EzPickle):
             foot_z = self.data.body(bid).xpos[2]
             phi = (self._phase + self.FOOT_PHASE_OFFSETS[i]) % (2.0 * np.pi)
             target_stance = phi < duty_cutoff
-            actual_stance = foot_z < 0.08
+            actual_stance = foot_z < 0.06
             if target_stance != actual_stance:
                 error_count += 1.0
         return error_count
@@ -185,9 +184,10 @@ class BastionEnv(MujocoEnv, utils.EzPickle):
         compliance = 1.0 - (gait_errors / len(self.FOOT_NAMES))
 
         v_err = abs(x_velocity - self._target_velocity) / self._velocity_sigma
-        forward_reward = self._forward_reward_weight * max(0.0, 1.0 - v_err)
+        forward_bell = max(0.0, 1.0 - v_err)
+        forward_reward = self._forward_reward_weight * forward_bell
         healthy_reward = self.healthy_reward
-        gait_bonus = self._gait_bonus_weight * compliance
+        gait_bonus = self._gait_bonus_weight * compliance * forward_bell
 
         ctrl_cost = self.control_cost(action)
         contact_cost = self.contact_cost
@@ -228,9 +228,17 @@ class BastionEnv(MujocoEnv, utils.EzPickle):
         return np.concatenate((position, velocity, phase_obs))
 
     def reset_model(self):
-        noise_low, noise_high = -self._reset_noise_scale, self._reset_noise_scale
-        qpos = self.init_qpos + self.np_random.uniform(low=noise_low, high=noise_high, size=self.model.nq)
-        qvel = self.init_qvel + self._reset_noise_scale * self.np_random.standard_normal(self.model.nv)
+        qpos = self.init_qpos.copy()
+        qvel = np.zeros_like(self.init_qvel)
+
+        qpos[7:] += self.np_random.uniform(
+            low=-self._reset_noise_scale, high=self._reset_noise_scale,
+            size=self.model.nq - 7,
+        )
+        qvel[6:] = self._reset_noise_scale * self.np_random.standard_normal(
+            self.model.nv - 6
+        )
+
         self.set_state(qpos, qvel)
         self.prev_action, self._phase = np.zeros(self.model.nu), 0.0
         return self._get_obs()

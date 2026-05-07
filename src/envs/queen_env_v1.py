@@ -19,7 +19,7 @@ class QueenEnv(MujocoEnv, utils.EzPickle):
     }
 
     FOOT_NAMES = ["l1_foot", "r1_foot", "l2_foot", "r2_foot", "l3_foot", "r3_foot"]
-    FOOT_PHASE_OFFSETS = np.array([0.0, np.pi, np.pi, 0.0, 0.0, np.pi])
+    FOOT_PHASE_OFFSETS = np.array([np.pi, 0.0, 0.0, np.pi, np.pi, 0.0])
 
     def __init__(
         self,
@@ -34,9 +34,12 @@ class QueenEnv(MujocoEnv, utils.EzPickle):
         angular_vel_weight: float = 0.05,
         posture_weight: float = 0.001,
         z_vel_weight: float = 0.02,
-        gait_cost_weight: float = 0.25,
+        gait_cost_weight: float = 0.1,
+        gait_bonus_weight: float = 1.5,
         gait_frequency: float = 1.5,
-        target_velocity: float = 1.5,  # m/s — speed cap for hexapod
+        gait_duty: float = 0.6,
+        target_velocity: float = 0.5,
+        velocity_sigma: float = 0.3,
         main_body: Union[int, str] = 1,
         terminate_when_unhealthy: bool = True,
         healthy_z_range: Tuple[float, float] = (0.25, 1.2),
@@ -50,7 +53,8 @@ class QueenEnv(MujocoEnv, utils.EzPickle):
             self, xml_file, frame_skip, default_camera_config, forward_reward_weight,
             ctrl_cost_weight, contact_cost_weight, healthy_reward, smoothness_weight,
             angular_vel_weight, posture_weight, z_vel_weight, gait_cost_weight,
-            gait_frequency, target_velocity, main_body, terminate_when_unhealthy,
+            gait_bonus_weight, gait_frequency, gait_duty, target_velocity, velocity_sigma,
+            main_body, terminate_when_unhealthy,
             healthy_z_range, contact_force_range, reset_noise_scale,
             exclude_current_positions_from_observation, include_cfrc_ext_in_observation, **kwargs
         )
@@ -63,8 +67,11 @@ class QueenEnv(MujocoEnv, utils.EzPickle):
         self._posture_weight = posture_weight
         self._z_vel_weight = z_vel_weight
         self._gait_cost_weight = gait_cost_weight
+        self._gait_bonus_weight = gait_bonus_weight
         self._gait_frequency = gait_frequency
+        self._gait_duty = gait_duty
         self._target_velocity = target_velocity
+        self._velocity_sigma = velocity_sigma
         self._healthy_reward = healthy_reward
         self._terminate_when_unhealthy = terminate_when_unhealthy
         self._healthy_z_range = healthy_z_range
@@ -135,9 +142,11 @@ class QueenEnv(MujocoEnv, utils.EzPickle):
 
     def _gait_error(self):
         error_count = 0.0
+        duty_cutoff = self._gait_duty * 2.0 * np.pi
         for i, bid in enumerate(self._foot_body_ids):
             foot_z = self.data.body(bid).xpos[2]
-            target_stance = np.sin(self._phase + self.FOOT_PHASE_OFFSETS[i]) <= 0
+            phi = (self._phase + self.FOOT_PHASE_OFFSETS[i]) % (2.0 * np.pi)
+            target_stance = phi < duty_cutoff
             actual_stance = foot_z < 0.12
             if target_stance != actual_stance:
                 error_count += 1.0
@@ -174,9 +183,10 @@ class QueenEnv(MujocoEnv, utils.EzPickle):
         gait_errors = self._gait_error()
         compliance = 1.0 - (gait_errors / len(self.FOOT_NAMES))
 
-        capped_velocity = min(x_velocity, self._target_velocity)
-        forward_reward = capped_velocity * self._forward_reward_weight
+        v_err = abs(x_velocity - self._target_velocity) / self._velocity_sigma
+        forward_reward = self._forward_reward_weight * max(0.0, 1.0 - v_err)
         healthy_reward = self.healthy_reward
+        gait_bonus = self._gait_bonus_weight * compliance
 
         ctrl_cost = self.control_cost(action)
         contact_cost = self.contact_cost
@@ -190,11 +200,12 @@ class QueenEnv(MujocoEnv, utils.EzPickle):
         costs = (ctrl_cost + contact_cost + smoothness_cost + angular_vel_cost +
                  z_vel_cost + posture_cost + gait_cost)
 
-        reward = forward_reward + healthy_reward - costs
+        reward = forward_reward + healthy_reward + gait_bonus - costs
 
         return reward, {
             "reward_forward": forward_reward,
             "reward_survive": healthy_reward,
+            "reward_gait_bonus": gait_bonus,
             "reward_ctrl": -ctrl_cost,
             "reward_contact": -contact_cost,
             "reward_smoothness": -smoothness_cost,
