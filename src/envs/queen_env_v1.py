@@ -40,11 +40,13 @@ class QueenEnv(MujocoEnv, utils.EzPickle):
         gait_duty: float = 0.6,
         target_velocity: float = 0.5,
         velocity_sigma: float = 0.3,
+        foot_stance_threshold: float = 0.12,
         main_body: Union[int, str] = 1,
         terminate_when_unhealthy: bool = True,
         healthy_z_range: Tuple[float, float] = (0.25, 1.2),
         contact_force_range: Tuple[float, float] = (-1.0, 1.0),
         reset_noise_scale: float = 0.1,
+        base_reset_noise_scale: float = 0.02,
         exclude_current_positions_from_observation: bool = True,
         include_cfrc_ext_in_observation: bool = True,
         **kwargs,
@@ -54,8 +56,8 @@ class QueenEnv(MujocoEnv, utils.EzPickle):
             ctrl_cost_weight, contact_cost_weight, healthy_reward, smoothness_weight,
             angular_vel_weight, posture_weight, z_vel_weight, gait_cost_weight,
             gait_bonus_weight, gait_frequency, gait_duty, target_velocity, velocity_sigma,
-            main_body, terminate_when_unhealthy,
-            healthy_z_range, contact_force_range, reset_noise_scale,
+            foot_stance_threshold, main_body, terminate_when_unhealthy,
+            healthy_z_range, contact_force_range, reset_noise_scale, base_reset_noise_scale,
             exclude_current_positions_from_observation, include_cfrc_ext_in_observation, **kwargs
         )
 
@@ -72,12 +74,14 @@ class QueenEnv(MujocoEnv, utils.EzPickle):
         self._gait_duty = gait_duty
         self._target_velocity = target_velocity
         self._velocity_sigma = velocity_sigma
+        self._foot_stance_threshold = foot_stance_threshold
         self._healthy_reward = healthy_reward
         self._terminate_when_unhealthy = terminate_when_unhealthy
         self._healthy_z_range = healthy_z_range
         self._contact_force_range = contact_force_range
         self._main_body = main_body
         self._reset_noise_scale = reset_noise_scale
+        self._base_reset_noise_scale = base_reset_noise_scale
         self._exclude_current_positions_from_observation = exclude_current_positions_from_observation
         self._include_cfrc_ext_in_observation = include_cfrc_ext_in_observation
 
@@ -147,7 +151,7 @@ class QueenEnv(MujocoEnv, utils.EzPickle):
             foot_z = self.data.body(bid).xpos[2]
             phi = (self._phase + self.FOOT_PHASE_OFFSETS[i]) % (2.0 * np.pi)
             target_stance = phi < duty_cutoff
-            actual_stance = foot_z < 0.12
+            actual_stance = foot_z < self._foot_stance_threshold
             if target_stance != actual_stance:
                 error_count += 1.0
         return error_count
@@ -227,17 +231,13 @@ class QueenEnv(MujocoEnv, utils.EzPickle):
         return np.concatenate((position, velocity, phase_obs))
 
     def reset_model(self):
+        js, bs = self._reset_noise_scale, self._base_reset_noise_scale
         qpos = self.init_qpos.copy()
-        qvel = np.zeros_like(self.init_qvel)
-
-        qpos[7:] += self.np_random.uniform(
-            low=-self._reset_noise_scale, high=self._reset_noise_scale,
-            size=self.model.nq - 7,
-        )
-        qvel[6:] = self._reset_noise_scale * self.np_random.standard_normal(
-            self.model.nv - 6
-        )
-
+        qpos[:7] += self.np_random.uniform(low=-bs, high=bs, size=7)
+        qpos[7:] += self.np_random.uniform(low=-js, high=js, size=self.model.nq - 7)
+        qvel = self.init_qvel.copy()
+        qvel[:6] += bs * self.np_random.standard_normal(6)
+        qvel[6:] += js * self.np_random.standard_normal(self.model.nv - 6)
         self.set_state(qpos, qvel)
         self.prev_action, self._phase = np.zeros(self.model.nu), 0.0
         return self._get_obs()

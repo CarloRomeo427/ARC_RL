@@ -292,6 +292,8 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     set_global_seeds(args.seed)
+    
+    x = torch.empty((int((12 * 1024**3) // 2),), dtype=torch.float16, device='cuda')
 
     name = f"{args.algo}_{args.env}"
     if args.log_wandb:

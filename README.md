@@ -67,7 +67,7 @@ That's all you need. Switch the environment with `--env {queen, bastion, leaper,
 | `sacfd` | [Vecerik et al., 2017](https://arxiv.org/abs/1707.08817) | SAC from Demonstrations (single fenced buffer) |
 | `rlpd` | [Ball et al., 2023](https://arxiv.org/abs/2302.02948) | 10 critics, UTD=20, random subset target, 50/50 sampling |
 | `speq_o2o` | based on `speq` | SPEQ with 50/50 online–offline sampling during both training and stabilization |
-| `sope` | *coming soon* | Adaptive Stabilization length via an actor-aligned OPE early-stopping signal (replaces SPEQ's fixed-N hyperparameter) |
+| `sope` | [Romeo et al., 2026](https://arxiv.org/abs/2605.05863) | Adaptive Stabilization length via an actor-aligned OPE early-stopping signal (replaces SPEQ's fixed-N hyperparameter) |
 
 ### CLI flags
 
@@ -112,7 +112,7 @@ All curves are mean ± std over 3 seeds, 1M env steps per run, EMA-smoothed. **D
 If you want to regenerate the expert demos yourself instead of pulling them from HuggingFace:
 
 ```bash
-python -m src.utils.collect_dataset.py --env bastion --n-episodes 1000
+python -m src.utils.collect_dataset --env bastion --n-episodes 1000
 ```
 
 The hand-crafted CPG controllers, used to generate the datasets, ship with the repo.

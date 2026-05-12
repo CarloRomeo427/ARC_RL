@@ -40,12 +40,14 @@ class LeaperEnv(MujocoEnv, utils.EzPickle):
         gait_duty: float = 0.6,
         target_velocity: float = 0.6,
         velocity_sigma: float = 0.4,
+        foot_stance_threshold: float = 0.08,
         # ---
         main_body: Union[int, str] = 1,
         terminate_when_unhealthy: bool = True,
         healthy_z_range: Tuple[float, float] = (0.2, 1.0),
         contact_force_range: Tuple[float, float] = (-1.0, 1.0),
         reset_noise_scale: float = 0.1,
+        base_reset_noise_scale: float = 0.1,
         exclude_current_positions_from_observation: bool = True,
         include_cfrc_ext_in_observation: bool = True,
         **kwargs,
@@ -56,8 +58,8 @@ class LeaperEnv(MujocoEnv, utils.EzPickle):
             ctrl_cost_weight, contact_cost_weight, healthy_reward, smoothness_weight,
             angular_vel_weight, posture_weight, z_vel_weight, gait_cost_weight,
             gait_bonus_weight, gait_frequency, gait_duty, target_velocity, velocity_sigma,
-            main_body, terminate_when_unhealthy,
-            healthy_z_range, contact_force_range, reset_noise_scale,
+            foot_stance_threshold, main_body, terminate_when_unhealthy,
+            healthy_z_range, contact_force_range, reset_noise_scale, base_reset_noise_scale,
             exclude_current_positions_from_observation, include_cfrc_ext_in_observation,
             **kwargs,
         )
@@ -75,6 +77,7 @@ class LeaperEnv(MujocoEnv, utils.EzPickle):
         self._gait_duty = gait_duty
         self._target_velocity = target_velocity
         self._velocity_sigma = velocity_sigma
+        self._foot_stance_threshold = foot_stance_threshold
 
         self._healthy_reward = healthy_reward
         self._terminate_when_unhealthy = terminate_when_unhealthy
@@ -82,6 +85,7 @@ class LeaperEnv(MujocoEnv, utils.EzPickle):
         self._contact_force_range = contact_force_range
         self._main_body = main_body
         self._reset_noise_scale = reset_noise_scale
+        self._base_reset_noise_scale = base_reset_noise_scale
 
         self._exclude_current_positions_from_observation = exclude_current_positions_from_observation
         self._include_cfrc_ext_in_observation = include_cfrc_ext_in_observation
@@ -153,7 +157,7 @@ class LeaperEnv(MujocoEnv, utils.EzPickle):
             foot_z = self.data.body(bid).xpos[2]
             phi = (self._phase + self.FOOT_PHASE_OFFSETS[i]) % (2.0 * np.pi)
             target_stance = phi < duty_cutoff
-            actual_stance = foot_z < 0.08
+            actual_stance = foot_z < self._foot_stance_threshold
             if target_stance != actual_stance:
                 error_count += 1.0
         return error_count
@@ -194,9 +198,6 @@ class LeaperEnv(MujocoEnv, utils.EzPickle):
         healthy_reward = self.healthy_reward
         gait_bonus = self._gait_bonus_weight * compliance
 
-        legs_on_ground = sum(1 for bid in self._foot_body_ids if self.data.body(bid).xpos[2] < 0.08)
-        flight_penalty = 1.0 if legs_on_ground == 0 else 0.0
-
         ctrl_cost = self.control_cost(action)
         contact_cost = self.contact_cost
         smoothness_cost = self._smoothness_weight * np.sum(np.square(action - self.prev_action))
@@ -204,11 +205,10 @@ class LeaperEnv(MujocoEnv, utils.EzPickle):
         angular_vel_cost = self._angular_vel_weight * np.sum(np.square(self.data.qvel[3:5]))
         z_vel_cost = self._z_vel_weight * np.square(self.data.qvel[2])
         posture_cost = self._posture_weight * np.sum(np.square(self.data.qpos[7:] - self.default_joints))
-
         gait_cost = self._gait_cost_weight * gait_errors
 
         costs = (ctrl_cost + contact_cost + smoothness_cost + angular_vel_cost +
-                 z_vel_cost + posture_cost + gait_cost + flight_penalty)
+                 z_vel_cost + posture_cost + gait_cost)
 
         reward = forward_reward + healthy_reward + gait_bonus - costs
 
@@ -223,8 +223,7 @@ class LeaperEnv(MujocoEnv, utils.EzPickle):
             "reward_z_vel": -z_vel_cost,
             "reward_posture": -posture_cost,
             "reward_gait_penalty": -gait_cost,
-            "reward_flight_penalty": -flight_penalty,
-            "gait_compliance": compliance
+            "gait_compliance": compliance,
         }
 
     def _get_obs(self):
@@ -243,13 +242,14 @@ class LeaperEnv(MujocoEnv, utils.EzPickle):
             return np.concatenate((position, velocity, phase_obs))
 
     def reset_model(self):
-        noise_low = -self._reset_noise_scale
-        noise_high = self._reset_noise_scale
-
-        qpos = self.init_qpos + self.np_random.uniform(low=noise_low, high=noise_high, size=self.model.nq)
-        qvel = self.init_qvel + self._reset_noise_scale * self.np_random.standard_normal(self.model.nv)
+        js, bs = self._reset_noise_scale, self._base_reset_noise_scale
+        qpos = self.init_qpos.copy()
+        qpos[:7] += self.np_random.uniform(low=-bs, high=bs, size=7)
+        qpos[7:] += self.np_random.uniform(low=-js, high=js, size=self.model.nq - 7)
+        qvel = self.init_qvel.copy()
+        qvel[:6] += bs * self.np_random.standard_normal(6)
+        qvel[6:] += js * self.np_random.standard_normal(self.model.nv - 6)
         self.set_state(qpos, qvel)
-
         self.prev_action = np.zeros(self.model.nu)
         self._phase = 0.0
         return self._get_obs()

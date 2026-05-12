@@ -1,10 +1,53 @@
 import argparse
 import importlib
+import json
 import os
 
 import h5py
 import gymnasium as gym
 import numpy as np
+
+
+CPG_REWARDS_FILENAME = "cpg_rewards.json"
+
+
+def _upsert_cpg_rewards(shared_path: str, env_name: str, returns: list,
+                        n_episodes: int, preset: str) -> dict:
+    """Read the shared CPG-rewards JSON, upsert this robot's stats, write back.
+
+    File layout:
+        {
+          "leaper":  {"mean": ..., "std": ..., "n_episodes": ..., "preset": "..."},
+          "bastion": {...},
+          "queen":   {...},
+          "tick":    {...}
+        }
+
+    All four robots share a single file at <out_dir>/cpg_rewards.json.
+    """
+    data = {}
+    if os.path.exists(shared_path):
+        try:
+            with open(shared_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            print(f"[collect_dataset] Warning: existing {shared_path} unreadable, rewriting from scratch")
+            data = {}
+
+    arr = np.asarray(returns, dtype=np.float64)
+    data[env_name] = {
+        'mean': float(arr.mean()),
+        'std':  float(arr.std(ddof=1)) if arr.size > 1 else 0.0,
+        'min':  float(arr.min()),
+        'max':  float(arr.max()),
+        'n_episodes': int(n_episodes),
+        'preset': str(preset),
+    }
+
+    os.makedirs(os.path.dirname(shared_path) or '.', exist_ok=True)
+    with open(shared_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, sort_keys=True)
+    return data[env_name]
 
 
 def parse_args():
@@ -61,6 +104,13 @@ def main():
 
     print(f"[collect_dataset] {args.env} ({args.preset}): {args.n_episodes} eps -> {out_path}")
     print(f"[collect_dataset] Return bounds: min={np.min(returns):.1f}, max={np.max(returns):.1f}, mean={np.mean(returns):.1f}")
+
+    # ── Shared cross-robot CPG-rewards ledger ──
+    shared_path = os.path.join(args.out_dir, CPG_REWARDS_FILENAME)
+    entry = _upsert_cpg_rewards(shared_path, args.env, returns,
+                                args.n_episodes, args.preset)
+    print(f"[collect_dataset] Updated {shared_path}: "
+          f"{args.env} -> mean={entry['mean']:.2f} +/- {entry['std']:.2f}")
     
     if args.hf_repo:
         try:
