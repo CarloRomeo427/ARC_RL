@@ -1,4 +1,5 @@
 # ARC-RL 🦾
+[![arXiv](https://img.shields.io/badge/arXiv-2605.19503-b31b1b.svg?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2605.19503)
 
 A reinforcement learning playground inspired by the iconic robots from **ARC Raiders**: the Queen, the Bastion, the Leaper and the Tick. Each one is built from scratch in MuJoCo, wrapped in Gymnasium, and ready to learn how to walk, run, and occasionally faceplant.
 
@@ -124,11 +125,14 @@ The hand-crafted CPG controllers, used to generate the datasets, ship with the r
 If this code helps you in your research, please cite it — it's much appreciated.
 
 ```bibtex
-@software{arc_rl_2026,
-  author = {Carlo Romeo},
-  title  = {ARC-RL: A Reinforcement Learning Playground for ARC-Raiders Inspired Robots},
-  year   = {2026},
-  url    = {https://github.com/CarloRomeo427/ARC_RL.git}
+@misc{romeo2026arcrlreinforcementlearningplayground,
+      title={ARC-RL: A Reinforcement Learning Playground Inspired by ARC Raiders}, 
+      author={Carlo Romeo and Andrew D. Bagdanov},
+      year={2026},
+      eprint={2605.19503},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2605.19503}, 
 }
 ```
 
